@@ -14,7 +14,7 @@ static char *ngx_http_shithole(ngx_conf_t *cf, ngx_command_t *cmd,
 static ngx_command_t  ngx_http_shithole_commands[] = {
 
     { ngx_string("shithole"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_NOARGS,
+      NGX_HTTP_LOC_CONF|NGX_CONF_NOARGS,
       ngx_http_shithole,
       0,
       0,
@@ -58,28 +58,15 @@ ngx_module_t  ngx_http_shithole_module = {
 static ngx_int_t
 ngx_http_shithole_handler(ngx_http_request_t *r)
 {
-    char              hostname[NGX_MAXHOSTNAMELEN];
-    ngx_table_elt_t  *h;
+    ngx_str_t                 type;
+    ngx_http_complex_value_t  cv;
 
-    ngx_log_debug(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                  "hostname is: fuck");
+    ngx_memzero(&cv, sizeof(ngx_http_complex_value_t));
 
-    if (gethostname(hostname, NGX_MAXHOSTNAMELEN) == -1) {
-        return NGX_ERROR;
-    }
+    ngx_str_set(&type, "text/html");
+    ngx_str_set(&cv.value, "<h1>fuck you</h1>");
 
-    hostname[NGX_MAXHOSTNAMELEN - 1] = '\0';
-
-    h = ngx_list_push(&r->headers_out.headers);
-    if (h == NULL) {
-        return NGX_ERROR;
-    }
-
-    h->hash = 1;
-    ngx_str_set(&h->key, "Shithole");
-    ngx_str_set(&h->value, "fuck");
-
-    return NGX_OK;
+    return ngx_http_send_response(r, NGX_HTTP_OK, &type, &cv);
 }
 
 static char *
