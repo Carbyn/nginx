@@ -21,7 +21,7 @@ static ngx_command_t  ngx_http_shithole_commands[] = {
       NULL },
 
       ngx_null_command
- };
+};
 
 
 static ngx_http_module_t  ngx_http_shithole_module_ctx = {
