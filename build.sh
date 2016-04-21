@@ -7,7 +7,8 @@ MODULES_SRC=/home/carbyn/dev/nginx/modules
 
 # the module to be tested
 # module=ngx_http_shithole_module
-module=ngx_http_fuckyou_module
+# module=ngx_http_fuckyou_module
+module=ngx_http_yak_module
 
 if [ -f $NGINX_HOME/logs/nginx.pid ]; then
     echo "gonna to stop nginx"
