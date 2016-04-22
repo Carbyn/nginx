@@ -16,31 +16,30 @@ typedef struct {
 
 static char *ngx_http_yak_set(ngx_conf_t *cf, ngx_command_t *cmd, 
     void *conf);
-static void *ngx_http_yak_create_loc_conf(ngx_conf_t *cf);
-static char *ngx_http_yak_merge_loc_conf(ngx_conf_t *cf, void *parent, 
+
+//static void *ngx_http_yak_create_main_conf(ngx_conf_t *cf);
+
+static void *ngx_http_yak_create_srv_conf(ngx_conf_t *cf);
+static char *ngx_http_yak_merge_srv_conf(ngx_conf_t *cf, void *parent, 
     void *child);
+
+//static void *ngx_http_yak_create_loc_conf(ngx_conf_t *cf);
+//static char *ngx_http_yak_merge_loc_conf(ngx_conf_t *cf, void *parent, 
+//    void *child);
+
 static ngx_int_t ngx_http_yak_init(ngx_conf_t *cf);
 
 
 static ngx_command_t  ngx_http_yak_commands[] = {
 
     { ngx_string("yak"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF
-          |NGX_HTTP_SIF_CONF|NGX_HTTP_LIF_CONF|NGX_CONF_TAKE2,
+      //NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF
+      //                  |NGX_HTTP_SIF_CONF|NGX_HTTP_LIF_CONF|NGX_CONF_TAKE2,
+      NGX_HTTP_SRV_CONF|NGX_CONF_TAKE2,
       ngx_http_yak_set,
-      NGX_HTTP_LOC_CONF_OFFSET,
+      NGX_HTTP_SRV_CONF_OFFSET,
       0,
       NULL },
-
-    /*
-    { ngx_string("yak_mem"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF
-          |NGX_HTTP_SIF_CONF|NGX_HTTP_LIF_CONF|NGX_CONF_TAKE1,
-      ngx_conf_set_flag_slot,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_yak_conf_t, mem),
-      NULL },
-      */
 
       ngx_null_command
 };
@@ -50,14 +49,17 @@ static ngx_http_module_t  ngx_http_yak_module_ctx = {
     NULL,                                   /* preconfiguration */
     ngx_http_yak_init,                      /* postconfiguration */
 
-    NULL,                                   /* create main configuration */
+    NULL,
+    //ngx_http_yak_create_main_conf,          /* create main configuration */
     NULL,                                   /* init main configuration */
 
-    NULL,                                   /* create server configuration */
-    NULL,                                   /* merge server configuration */
+    ngx_http_yak_create_srv_conf,           /* create server configuration */
+    ngx_http_yak_merge_srv_conf,            /* merge server configuration */
 
-    ngx_http_yak_create_loc_conf,           /* create location configuration */
-    ngx_http_yak_merge_loc_conf             /* merge location configuration */
+    NULL,
+    NULL,
+    //ngx_http_yak_create_loc_conf,           /* create location configuration */
+    //ngx_http_yak_merge_loc_conf             /* merge location configuration */
 };
 
 
@@ -97,6 +99,9 @@ ngx_http_yak_set(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
     yak_conf->cmd = value[2];
 
+    ngx_conf_log_error(NGX_LOG_INFO, cf, 0, "yak set mem=%d, cmd=\"%V\"", 
+                       yak_conf->mem, &yak_conf->cmd);
+
     return NGX_CONF_OK;
 }
 
@@ -111,19 +116,22 @@ ngx_http_yak(ngx_http_request_t *r)
     ngx_table_elt_t      *h;
     ngx_http_yak_conf_t  *yak_conf;
 
-    yak_conf = ngx_http_get_module_loc_conf(r, ngx_http_yak_module);
+    yak_conf = ngx_http_get_module_srv_conf(r, ngx_http_yak_module);
+    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                  "yak mem=%d, cmd=\"%V\"", yak_conf->mem, &yak_conf->cmd);
 
     if (yak_conf->mem == 0 || out == NULL) {
         if (yak_conf->cmd.len == 0) {
-            ngx_log_error(NGX_LOG_EMERG, r->connection->log, 0,
-                          "yak param is invalid");
+            ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                          "yak invalid param");
             return ngx_http_next_header_filter(r);
         }
 
+        // todo, pop a notice in log
         pp = popen((const char *)yak_conf->cmd.data, "r");
         if (pp == NULL) {
-            ngx_log_error(NGX_LOG_EMERG, r->connection->log, 0,
-                          "yak cmd returns failure");
+            ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                          "yak cmd returns failure. cmd=\"%V\"", &yak_conf->cmd);
             return ngx_http_next_header_filter(r);
         }
 
@@ -131,16 +139,16 @@ ngx_http_yak(ngx_http_request_t *r)
         pclose(pp);
 
         if (out == NULL) {
-            ngx_log_error(NGX_LOG_EMERG, r->connection->log, 0,
-                          "yak failed to get cmd's output");
+            ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                          "yak get cmd's output error. cmd=\"%V\"", &yak_conf->cmd);
             return ngx_http_next_header_filter(r);
         }
     }
 
     h = ngx_list_push(&r->headers_out.headers);
     if (h == NULL) {
-        ngx_log_error(NGX_LOG_EMERG, r->connection->log, 0,
-                      "yak failed to add header");
+        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                      "yak add header error");
         return ngx_http_next_header_filter(r);
     }
 
@@ -163,6 +171,57 @@ ngx_http_yak_init(ngx_conf_t *cf)
     return NGX_OK;
 }
 
+/*
+static void *
+ngx_http_yak_create_main_conf(ngx_conf_t *cf)
+{
+    ngx_http_yak_conf_t  *yak_conf = NULL;
+    yak_conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_yak_conf_t));
+    if (yak_conf == NULL) {
+        return NULL;
+    }
+
+    ngx_str_null(&yak_conf->cmd);
+    yak_conf->mem = 0;
+    ngx_conf_log_error(NGX_LOG_INFO, cf, 0,
+                  "yak create main mem is %d", yak_conf->mem);
+
+    return yak_conf;
+}*/
+
+static void *
+ngx_http_yak_create_srv_conf(ngx_conf_t *cf)
+{
+    ngx_http_yak_conf_t  *yak_conf = NULL;
+    yak_conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_yak_conf_t));
+    if (yak_conf == NULL) {
+        return NULL;
+    }
+
+    ngx_str_null(&yak_conf->cmd);
+    yak_conf->mem = 0;
+    ngx_conf_log_error(NGX_LOG_INFO, cf, 0,
+                  "yak create srv mem=%d, cmd=\"%V\"", yak_conf->mem, &yak_conf->cmd);
+
+    return yak_conf;
+}
+
+static char *
+ngx_http_yak_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
+{
+    ngx_http_yak_conf_t  *prev = parent;
+    ngx_http_yak_conf_t  *conf = child;
+
+    ngx_conf_merge_str_value(conf->cmd, prev->cmd, "");
+    ngx_conf_merge_value(conf->mem, prev->mem, 0);
+    ngx_conf_log_error(NGX_LOG_INFO, cf, 0,
+                       "yak merge srv mem: pmem=%d, pcmd=\"%V\", cmem=%d, ccmd=\"%V\"", 
+                       prev->mem, &prev->cmd, conf->mem, &conf->cmd);
+
+    return NGX_CONF_OK;
+}
+
+/*
 static void *
 ngx_http_yak_create_loc_conf(ngx_conf_t *cf)
 {
@@ -174,6 +233,8 @@ ngx_http_yak_create_loc_conf(ngx_conf_t *cf)
 
     ngx_str_null(&yak_conf->cmd);
     yak_conf->mem = 0;
+    ngx_conf_log_error(NGX_LOG_INFO, cf, 0,
+                  "yak create loc mem=%d, cmd=\"%V\"", yak_conf->mem, &yak_conf->cmd);
 
     return yak_conf;
 }
@@ -186,6 +247,9 @@ ngx_http_yak_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 
     ngx_conf_merge_str_value(conf->cmd, prev->cmd, "");
     ngx_conf_merge_value(conf->mem, prev->mem, 0);
+    ngx_conf_log_error(NGX_LOG_INFO, cf, 0,
+                  "yak merge loc mem: pm=%d, pc=\"%V\", cm=%d, cc=\"%V\"", prev->mem, &prev->cmd, conf->mem, &conf->cmd);
 
     return NGX_CONF_OK;
 }
+*/
