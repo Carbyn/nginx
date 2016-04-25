@@ -122,15 +122,14 @@ ngx_http_yak(ngx_http_request_t *r)
 
     if (yak_conf->mem == 0 || out == NULL) {
         if (yak_conf->cmd.len == 0) {
-            ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+            ngx_log_error(NGX_LOG_EMERG, r->connection->log, 0,
                           "yak invalid param");
             return ngx_http_next_header_filter(r);
         }
 
-        // todo, pop a notice in log
         pp = popen((const char *)yak_conf->cmd.data, "r");
         if (pp == NULL) {
-            ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+            ngx_log_error(NGX_LOG_EMERG, r->connection->log, 0,
                           "yak cmd returns failure. cmd=\"%V\"", &yak_conf->cmd);
             return ngx_http_next_header_filter(r);
         }
@@ -139,7 +138,7 @@ ngx_http_yak(ngx_http_request_t *r)
         pclose(pp);
 
         if (out == NULL) {
-            ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+            ngx_log_error(NGX_LOG_EMERG, r->connection->log, 0,
                           "yak get cmd's output error. cmd=\"%V\"", &yak_conf->cmd);
             return ngx_http_next_header_filter(r);
         }
@@ -147,7 +146,7 @@ ngx_http_yak(ngx_http_request_t *r)
 
     h = ngx_list_push(&r->headers_out.headers);
     if (h == NULL) {
-        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+        ngx_log_error(NGX_LOG_EMERG, r->connection->log, 0,
                       "yak add header error");
         return ngx_http_next_header_filter(r);
     }
